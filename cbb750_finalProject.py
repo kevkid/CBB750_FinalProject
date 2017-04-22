@@ -101,7 +101,10 @@ def getNessessaryKeyValues(record):
             ]
     subrecord = {}
     for f in fields:
-        subrecord.update(get_dotted(record, f))
+        extracted_record = get_dotted(record, f)
+        #we get the key and try to convert to float, otherwise return the same val
+        extracted_record[extracted_record.keys()[0]] = convert_to_float(extracted_record.values()[0])
+        subrecord.update(extracted_record)
     return subrecord
 
 
@@ -140,7 +143,26 @@ def convert_to_float(s):
         return float(s)
     except ValueError:
         return s
+    except TypeError:
+        return s
+def logistic_regression(data):
+    #some stuff
+    raise NotImplementedError
 
+def get_y_vals(df, y_label):
+    df.loc[df[y_label].str.contains("")] = 0
+    y = df[y_label]
+    del df[y_label]
+    return (df, y)#return the new dataframe and y array
+
+'''
+Returns a trained logistic regression model
+'''
+def logistic_regression(x_train, y_train):
+    from sklearn import linear_model
+    model = linear_model.LogisticRegression()
+    model.fit(x_train, y_train)
+    return model
 if __name__ == '__main__':
     #main method
     records = getRecords()#get records
@@ -148,7 +170,24 @@ if __name__ == '__main__':
     subrecords = []#Get all the records and pull out the stuff we need
     for record in records:
         subrecords.append(getNessessaryKeyValues(record))
-        
+    
+    import pandas
+    x_y_dataframe = pandas.DataFrame(subrecords,index=[range(0,len(subrecords))])#put into a dataframe
+    #get labels
+    (x,y) = get_y_vals(x_y_dataframe, 'seriousnessdeath')
+    
+    
+    y[0:20] = 1#just a test
+    #split the data:
+    from sklearn.model_selection import train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
+    
+    #do a logistic regression
+    model = logistic_regression(X_train, list(y_train))
+    y_hat = model.predict(X_test)#predict
+    
+    
+    
     collection = startmongodb()#get collection
     collection.count()
     collection.insert_many(subrecords)
