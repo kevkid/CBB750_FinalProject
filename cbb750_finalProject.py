@@ -54,10 +54,10 @@ def getNessessaryKeyValues(record):
             'companynumb',
             'occurcountry',
             'primarysourcecountry',
-            'primarysource',
+            #'primarysource',
             'primarysource.qualification',
             'primarysource.reportercountry',
-            'reportduplicate',
+            #'reportduplicate',
             'reportduplicate.duplicatesource',
             'reportduplicate.duplicatenumb',
             "patient.patientonsetage",
@@ -145,27 +145,66 @@ def convert_to_float(s):
         return s
     except TypeError:
         return s
-def logistic_regression(data):
-    #some stuff
-    raise NotImplementedError
 
 def get_y_vals(df, y_label):
-    df.loc[df[y_label].str.contains("")] = 0
+    #df.loc[pandas.isnull(df[y_label])] = ""#missing data
+    df.loc[df[y_label].str.contains("", na=False)] = 0
     y = df[y_label]
     del df[y_label]
     return (df, y)#return the new dataframe and y array
 
 '''
-Returns a trained logistic regression model
+Returns a trained naive_bays model
 '''
-def logistic_regression(x_train, y_train):
-    from sklearn import linear_model
-    model = linear_model.LogisticRegression()
+
+def naive_bays(x_train, y_train, bagging = False, boosting = False):
+    from sklearn.naive_bayes import GaussianNB as NB
+    nb = NB()
+    if bagging == True and boosting == True:
+        raise ValueError("Cant have bagging and boosting enabled at the same time")
+    if bagging == True:#if bagging
+        from sklearn.ensemble import BaggingClassifier
+        model = BaggingClassifier (nb, max_samples=.5, max_features=.5)
+    elif boosting == True:
+        from sklearn.ensemble import AdaBoostClassifier
+        model = AdaBoostClassifier(nb,
+                         algorithm="SAMME",
+                         n_estimators=300)
+    else:#just regular logistic regression
+        model = nb
     model.fit(x_train, y_train)
     return model
+'''
+Returns a trained logistic regression model
+'''
+def logistic_regression(x_train, y_train, bagging = False, boosting = False):
+    from sklearn import linear_model
+    lr = linear_model.LogisticRegression()
+    if bagging == True and boosting == True:
+        raise ValueError("Cant have bagging and boosting enabled at the same time")
+    if bagging == True:#if bagging
+        from sklearn.ensemble import BaggingClassifier
+        model = BaggingClassifier (lr, max_samples=.5, max_features=.5)
+    elif boosting == True:
+        from sklearn.ensemble import AdaBoostClassifier
+        model = AdaBoostClassifier(lr,
+                         algorithm="SAMME",
+                         n_estimators=300)
+    else:#just regular logistic regression
+        model = lr
+    model.fit(x_train, y_train)
+    return model
+
+def random_forest(x_train, y_train, estimators = 100, maxDepth = None, randomState = 10, maxFeatures = 'auto'):
+    from sklearn.ensemble import RandomForestClassifier
+    model = RandomForestClassifier(n_estimators=estimators, max_depth=maxDepth,
+                           random_state=randomState, max_features=maxFeatures)
+    model.fit(x_train, y_train)
+    return model
+
 if __name__ == '__main__':
     #main method
-    records = getRecords()#get records
+    records = getRecords(num_records=1000)#get records
     
     subrecords = []#Get all the records and pull out the stuff we need
     for record in records:
@@ -175,15 +214,27 @@ if __name__ == '__main__':
     x_y_dataframe = pandas.DataFrame(subrecords,index=[range(0,len(subrecords))])#put into a dataframe
     #get labels
     (x,y) = get_y_vals(x_y_dataframe, 'seriousnessdeath')
-    
-    
-    y[0:20] = 1#just a test
+    #y[0:20] = 1#just a test
     #split the data:
     from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
     
     #do a logistic regression
-    model = logistic_regression(X_train, list(y_train))
+    model = logistic_regression(X_train, list(y_train), boosting=False)
+    y_hat = model.predict(X_test)#predict
+    
+    '''
+    TODO:
+        Need to figure out why when I try to fit the model it cant convert string to float?
+        
+    '''
+    X_train.apply(lambda x: pandas.factorize(x)[0])#something is wrong when trying to do many rows, probably due to empty or null or something.
+    #do a random forest
+    model = random_forest(X_train, list(y_train))
+    y_hat = model.predict(X_test)#predict
+    
+    #do a naive bays
+    model = naive_bays(X_train, list(y_train), bagging=True)
     y_hat = model.predict(X_test)#predict
     
     
