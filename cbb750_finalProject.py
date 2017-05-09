@@ -8,6 +8,10 @@ Created on Thu Apr 13 10:08:24 2017
 
 import urllib, json
 import pymongo
+import os
+os.chdir("Downloads/CBB750_FinalProject/") 
+
+
 '''Get the records from fda'''
 def getRecords(num_records = 100, start_date='20120101', end_date='20161231'):
     #num_records = 4587015
@@ -32,6 +36,9 @@ def getRecords(num_records = 100, start_date='20120101', end_date='20161231'):
     '''
     return records
 
+
+    
+
 '''Start mongodb, return the fda_records collection for querying'''
 def startmongodb():
     from pymongo import MongoClient
@@ -46,55 +53,55 @@ def getNessessaryKeyValues(record):
     fields = ['safetyreportid',
             'receivedate',
             'serious',
-            'seriousnessdeath',
-            'seriousnessdisabling',
-            'seriousnesshospitalization',
-            'seriousnesslifethreatening',
-            'seriousnessother',
+            #'seriousnessdeath',
+            #'seriousnessdisabling',
+            #'seriousnesshospitalization',
+            #'seriousnesslifethreatening',
+            #'seriousnessother',
             'transmissiondate',
             'duplicate',
-            'companynumb',
+            #'companynumb',
             'occurcountry',
             'primarysourcecountry',
             #'primarysource',
             'qualification',
             'reportercountry',
             #'reportduplicate',
-            'duplicatesource',
-            'duplicatenumb',
-            "patientonsetage",
-            "patientonsetageunit",
+            #'duplicatesource',
+            #'duplicatenumb',
+            #"patientonsetage",
+            #"patientonsetageunit",
             "patientsex",
             #"patient.patientweight",#interseting, this data may be useful but is not recorded much
-            "patientdeath",
-            "patientdeathdate",
+            #"patientdeath",
+            #"patientdeathdate",
             "actiondrug",
             #"patient.drug.drugadditional",
             #"patient.drug.drugcumulativedosagenumb",
             #"patient.drug.drugcumulativedosageunit",
-            "drugdosageform",
+            #"drugdosageform",
             #"patient.drug.drugintervaldosagedefinition",
             #"patient.drug.drugrecurreadministration",
             #"patient.drug.drugseparatedosagenumb",
-            "drugadministrationroute",
+            #"drugadministrationroute",
             "drugcharacterization",
-            "drugdosagetext",
-            'drugenddate',#sometimes patients do not have an end date? maybe replace with some value like -1
-            'drugindication',
-            'drugstartdate',
+            #"drugdosagetext",
+            #'drugenddate',#sometimes patients do not have an end date? maybe replace with some value like -1
+            #'drugindication',
+            #'drugstartdate',
             #'patient.drug.drugtreatmentduration',
             #'patient.drug.drugtreatmentdurationunit',
             'medicinalproduct',
-            'brand_name',
+            #'brand_name',
             'generic_name',
-            'manufacturer_name',
-            'nui',
-            'package_ndc',
-            'pharm_class_cs',
-            'pharm_class_epc',
-            'pharm_class_pe',
-            'pharm_class_moa',
-            'product_ndc',
+            #'manufacturer_name',
+            #'nui',
+            #'package_ndc',
+            #'pharm_class_cs',
+            #'pharm_class_epc',
+            #'pharm_class_pe',
+            #'pharm_class_moa',
+            #'product_ndc',
             'rxcui',
             'substance_name',
             'reactionmeddrapt',
@@ -267,6 +274,7 @@ def dummyEncode(df):
     return df
 
 def one_hot_encode(categorical_labels):
+    import gc
     res = []
     tmp = None
     for col in categorical_labels:
@@ -278,82 +286,147 @@ def one_hot_encode(categorical_labels):
             res.append(tmp)
             del tmp
             tmp = None
+            gc.collect()
         else:
             res.append(v)
     result = pandas.concat(res, axis=1)
     return result
 
+def getJsonList(directory = "/home/kevin/Downloads/CBB750_FinalProject/mnt"):
+    import os, glob
+    import json
+    os.chdir(directory)
+    #take each json file read each list element, and write it to the system
+    data = []
+    for f in glob.glob("*.json"):
+        data.append(f)
+    return data
+
 if __name__ == '__main__':
     #main method
-    records = getRecords(num_records=1000)#get records
+#    records = getRecords(num_records=5000)#get records
+#    
+#    #save to disk
+#    with open('data.json', 'w') as outfile:
+#        json.dump(records, outfile)
+#    #read from disk
+#    with open('data.json') as json_data:
+#        records = json.load(json_data)
     
-    #save to disk
-    with open('data.json', 'w') as outfile:
-        json.dump(records, outfile)
-    #read from disk
-    with open('data.json') as json_data:
-        records = json.load(json_data)
+    '''
+    We can read in each json file individually and extract the neccessary
+    elements we need thus making the file smaller and easier to read.
+    Here we read it in and save the data
+    '''
+    data = getJsonList("/home/kevin/Downloads/CBB750_FinalProject/2013")#get the list of json files
+    #os.chdir("/home/kevin/Downloads/CBB750_FinalProject/") 
+    subrecords_loc = '/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json'
+    num_files = len(data)
+    count  = 0
     subrecords = []#Get all the records and pull out the stuff we need
-    for record in records:
-        subrecords.append(getNessessaryKeyValues(record))
+
+    
+    for element in data:#get all of the files from some server
+        count +=1
+        print "Files Progress: " + str(count) + '/' + str(num_files)
+        
+        with open(element) as json_data:#for each file load it and get its results
+            json_file = json.load(json_data)
+            
+        records = json_file['results']#just get results
+        del json_file#save memory
+        num_rec = len(records)
+        rec_count = 0
+        rec = []
+        
+        for record in records:#for all of the records in the file prune the record and get what we need
+            #rec_count += 1
+            #print "Records per file Progress: " + str(rec_count) + '/' + str(num_rec)
+            rec = (getNessessaryKeyValues(record))#pruning
+            
+            
+            subrecords.append(rec)#append the record to a list
+    with open('/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json', "a") as out_file:
+        json.dump(subrecords, out_file)
+                    
     del records#save memory
     del record
+    #del subrecords
     
+    os.chdir("/home/kevin/Downloads/CBB750_FinalProject/")
+    '''
+    Read in the subarray data
+    '''
+    #read from disk
+    with open('/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json', 'r') as data_file:
+        data = json.load(data_file)
+        
+        
     import pandas
-    x_y_dataframe = pandas.DataFrame(subrecords)
+    x_y_dataframe = pandas.DataFrame(data)
     #x_y_dataframe.dropna(how='any')#here we can drop a row if there is any na
-    del subrecords
+    del data
+    #remove columns that have the most nas
+    x_y_dataframe = x_y_dataframe.dropna(axis=0)
     
-    #x_y_dataframe2 = x_y_dataframe.dropna(axis=0)
+    #check columns for most nas
+#    cols = list (x_y_dataframe)
+#    d = {}
+#    for col in cols:
+#        #d[col] = 
+#        print x.loc[x[col].str.contains("12.5 MG EACH ANTIEMETIC") ]
+        #print col + ": " + str(x_y_dataframe[col].str.contains("12.5 MG EACH ANTIEMETIC"))
+    
     #get labels
     (x,y) = get_y_vals(x_y_dataframe, 'serious')
     del x_y_dataframe
+    
     #df = pandas.DataFrame([{'drug': ['drugA','drugB'], 'patient': 'john'}, {'drug': ['drugC','drugD'], 'patient': 'angel'}])
     
     categorical_labels = [
  'actiondrug',
- 'brand_name',
- 'companynumb',
- 'drugadministrationroute',
+ #'brand_name',
+ #'companynumb',
+ #'drugadministrationroute',
  'drugcharacterization',
- 'drugdosageform',
- 'drugdosagetext',
- 'drugenddate',
- 'drugindication',
- 'drugstartdate',
+ #'drugdosageform',
+ #'drugdosagetext',
+ #'drugenddate',
+ #'drugindication',
+ #'drugstartdate',
  #'duplicate',
- 'duplicatenumb',
- 'duplicatesource',
+ #'duplicatenumb',
+ #'duplicatesource',
  'generic_name',
- 'manufacturer_name',
+ #'manufacturer_name',
  'medicinalproduct',
- 'nui',#has lists
+ #'nui',#has lists
  'occurcountry',
- 'package_ndc',
- 'patientdeath',
- 'patientdeathdate',
+ #'package_ndc',
+ #'patientdeath',
+ #'patientdeathdate',
  #'patientonsetage',
- 'patientonsetageunit',
+ #'patientonsetageunit',
  'patientsex',
- 'pharm_class_cs',
- 'pharm_class_epc',
- 'pharm_class_moa',
- 'pharm_class_pe',
+ #'pharm_class_cs',
+ #'pharm_class_epc',
+ #'pharm_class_moa',
+ #'pharm_class_pe',
  'primarysourcecountry',
- 'product_ndc',
+ #'product_ndc',
  #'qualification',
  'reactionmeddrapt',
  'reactionmeddraversionpt',
  'reactionoutcome',
- #'receivedate',
+ 'receivedate',
  'reportercountry',
- 'rxcui',
+ 'rxcui',#lets pretend its not a categorical
  #'safetyreportid',
- 'seriousnessdeath',
- 'seriousnessdisabling',
- 'seriousnesshospitalization',
- 'seriousnesslifethreatening',
- 'seriousnessother',
+ #'seriousnessdeath',
+ #'seriousnessdisabling',
+ #'seriousnesshospitalization',
+ #'seriousnesslifethreatening',
+ #'seriousnessother',
  'substance_name',
  #'transmissiondate'
  ]
@@ -373,11 +446,11 @@ if __name__ == '__main__':
     not_categorical_labels = [x_val for x_val in list(x) if x_val not in s]
     x_non_cat_labels = x[not_categorical_labels]#save non cat to temp var
     
-    num_processors = 4
+    num_processors = 1
     n_size = int(round(len(categorical_labels)/num_processors))
     import time
     import multiprocessing
-    
+    os.system("taskset -p 0xff %d" % os.getpid())
     start_time = time.time()
     p = multiprocessing.Pool(num_processors)
     res = (p.map(one_hot_encode, list(chunks(categorical_labels, n_size))))
