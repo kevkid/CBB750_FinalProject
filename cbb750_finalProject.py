@@ -91,7 +91,7 @@ def getNessessaryKeyValues(record):
             #'drugstartdate',
             #'patient.drug.drugtreatmentduration',
             #'patient.drug.drugtreatmentdurationunit',
-            'medicinalproduct',
+            #'medicinalproduct',
             #'brand_name',
             'generic_name',
             #'manufacturer_name',
@@ -277,7 +277,12 @@ def one_hot_encode(categorical_labels):
     import gc
     res = []
     tmp = None
+    count = 1
+    cat_lab_len = len(categorical_labels)
     for col in categorical_labels:
+        print "Label: " + str(count) + '/' + str(cat_lab_len)
+        print "Currently on label: " + str(col)
+        count+=1
         v = x[col].astype(str).str.strip('[]').str.get_dummies(', ')#cant set a prefix
         if len(res) == 2:
             tmp = pandas.concat(res, axis=1)
@@ -302,6 +307,40 @@ def getJsonList(directory = "/home/kevin/Downloads/CBB750_FinalProject/mnt"):
         data.append(f)
     return data
 
+def get_top_categorical(categorical_labels, N = 50):
+    count = 1
+    cat_lab_len = len(categorical_labels)
+    for label in categorical_labels: 
+        print 'Labels: ' + str(count) + '/' + str(cat_lab_len)
+        count +=1
+        from collections import defaultdict, Counter
+        labelDict = defaultdict(int)
+        for element in x_y_dataframe[label]:
+            if type(element) == list:
+                for el in element:#for every value in the list
+                    labelDict[el] += 1
+            else:
+                labelDict[element] += 1
+        
+        labelDict = dict(Counter(labelDict).most_common(N))
+        labelDictKeys = labelDict.keys()
+        labelDictKeysSet = set(labelDictKeys)
+        for idx in range(0, len(x_y_dataframe[label])):
+            val = x_y_dataframe[label][idx]
+            if type(val) == list:#do an intersection
+                res = list(set(val) & labelDictKeysSet)
+                if not res:#if list is empty
+                    x_y_dataframe.set_value(idx,label, None)
+                elif(len(res) == 1):
+                    x_y_dataframe.set_value(idx,label, res[0])
+                else:
+                    x_y_dataframe.set_value(idx,label, res)
+            else:
+                if val not in labelDictKeys:
+                    x_y_dataframe.set_value(idx,label, None)
+def fix_date(column):
+    for col in column:
+        x_y_dataframe[col] = pandas.to_datetime(x_y_dataframe[col], errors='coerce')
 if __name__ == '__main__':
     #main method
 #    records = getRecords(num_records=5000)#get records
@@ -313,12 +352,59 @@ if __name__ == '__main__':
 #    with open('data.json') as json_data:
 #        records = json.load(json_data)
     
+    categorical_labels = [
+                     'actiondrug',
+                     #'brand_name',
+                     #'companynumb',
+                     #'drugadministrationroute',
+                     'drugcharacterization',
+                     #'drugdosageform',
+                     #'drugdosagetext',
+                     #'drugenddate',
+                     #'drugindication',
+                     #'drugstartdate',
+                     #'duplicate',
+                     #'duplicatenumb',
+                     #'duplicatesource',
+                     'generic_name',
+                     #'manufacturer_name',
+                     'medicinalproduct',
+                     #'nui',#has lists
+                     'occurcountry',
+                     #'package_ndc',
+                     #'patientdeath',
+                     #'patientdeathdate',
+                     #'patientonsetage',
+                     #'patientonsetageunit',
+                     'patientsex',
+                     #'pharm_class_cs',
+                     #'pharm_class_epc',
+                     #'pharm_class_moa',
+                     #'pharm_class_pe',
+                     'primarysourcecountry',
+                     #'product_ndc',
+                     #'qualification',
+                     'reactionmeddrapt',
+                     'reactionmeddraversionpt',
+                     'reactionoutcome',
+                     #'receivedate',
+                     'reportercountry',
+                     'rxcui',#lets pretend its not a categorical
+                     #'safetyreportid',
+                     #'seriousnessdeath',
+                     #'seriousnessdisabling',
+                     #'seriousnesshospitalization',
+                     #'seriousnesslifethreatening',
+                     #'seriousnessother',
+                     'substance_name',
+                     #'transmissiondate'
+                     ]
     '''
     We can read in each json file individually and extract the neccessary
     elements we need thus making the file smaller and easier to read.
     Here we read it in and save the data
     '''
-    data = getJsonList("/home/kevin/Downloads/CBB750_FinalProject/2013")#get the list of json files
+    data = getJsonList("/media/kevin/Anime/drug-event_2013")#get the list of json files
     #os.chdir("/home/kevin/Downloads/CBB750_FinalProject/") 
     subrecords_loc = '/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json'
     num_files = len(data)
@@ -346,12 +432,14 @@ if __name__ == '__main__':
             
             
             subrecords.append(rec)#append the record to a list
+    print "Writing to json file"
     with open('/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json', "a") as out_file:
         json.dump(subrecords, out_file)
                     
+    data = subrecords
     del records#save memory
     del record
-    #del subrecords
+    del subrecords
     
     os.chdir("/home/kevin/Downloads/CBB750_FinalProject/")
     '''
@@ -363,11 +451,27 @@ if __name__ == '__main__':
         
         
     import pandas
+    import numpy as np
     x_y_dataframe = pandas.DataFrame(data)
     #x_y_dataframe.dropna(how='any')#here we can drop a row if there is any na
     del data
     #remove columns that have the most nas
+    fix_date(['receivedate'])
+    get_top_categorical(['generic_name', 'medicinalproduct', 'substance_name'], 500)
     x_y_dataframe = x_y_dataframe.dropna(axis=0)
+    x_y_dataframe = x_y_dataframe.reset_index(drop=True)
+    x_y_dataframe = x_y_dataframe.iloc[0:100000]
+#    del x_y_dataframe
+#    df_arr = np.array_split(x_y_dataframe, 3)
+    
+
+#    
+#
+
+    
+
+    
+    
     
     #check columns for most nas
 #    cols = list (x_y_dataframe)
@@ -383,53 +487,6 @@ if __name__ == '__main__':
     
     #df = pandas.DataFrame([{'drug': ['drugA','drugB'], 'patient': 'john'}, {'drug': ['drugC','drugD'], 'patient': 'angel'}])
     
-    categorical_labels = [
- 'actiondrug',
- #'brand_name',
- #'companynumb',
- #'drugadministrationroute',
- 'drugcharacterization',
- #'drugdosageform',
- #'drugdosagetext',
- #'drugenddate',
- #'drugindication',
- #'drugstartdate',
- #'duplicate',
- #'duplicatenumb',
- #'duplicatesource',
- 'generic_name',
- #'manufacturer_name',
- 'medicinalproduct',
- #'nui',#has lists
- 'occurcountry',
- #'package_ndc',
- #'patientdeath',
- #'patientdeathdate',
- #'patientonsetage',
- #'patientonsetageunit',
- 'patientsex',
- #'pharm_class_cs',
- #'pharm_class_epc',
- #'pharm_class_moa',
- #'pharm_class_pe',
- 'primarysourcecountry',
- #'product_ndc',
- #'qualification',
- 'reactionmeddrapt',
- 'reactionmeddraversionpt',
- 'reactionoutcome',
- 'receivedate',
- 'reportercountry',
- 'rxcui',#lets pretend its not a categorical
- #'safetyreportid',
- #'seriousnessdeath',
- #'seriousnessdisabling',
- #'seriousnesshospitalization',
- #'seriousnesslifethreatening',
- #'seriousnessother',
- 'substance_name',
- #'transmissiondate'
- ]
     #save data
     x.to_pickle('x_data.pkl')
     y.to_pickle('y_data.pkl')
@@ -445,6 +502,18 @@ if __name__ == '__main__':
     s = set(categorical_labels)
     not_categorical_labels = [x_val for x_val in list(x) if x_val not in s]
     x_non_cat_labels = x[not_categorical_labels]#save non cat to temp var
+    x = one_hot_encode(categorical_labels)
+    
+    from sklearn.feature_extraction.text import CountVectorizer
+    vect = CountVectorizer()
+    X = vect.fit_transform(x_y_dataframe.medicinalproduct.map(lambda x: ' '.join(x) if isinstance(x, list) else x))
+    r = pandas.SparseDataFrame(X, columns=vect.get_feature_names(), index=x_y_dataframe.index, default_fill_value=0)
+    r = pandas.DataFrame(X.A, columns=vect.get_feature_names(), index=x.index)
+    m = pandas.concat([m,r], axis=1)
+    
+    
+    
+    
     
     num_processors = 1
     n_size = int(round(len(categorical_labels)/num_processors))
