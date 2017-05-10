@@ -59,23 +59,23 @@ def getNessessaryKeyValues(record):
             #'seriousnesslifethreatening',
             #'seriousnessother',
             'transmissiondate',
-            'duplicate',
+            #'duplicate',
             #'companynumb',
             'occurcountry',
-            'primarysourcecountry',
+            #'primarysourcecountry',
             #'primarysource',
             'qualification',
-            'reportercountry',
+            #'reportercountry',
             #'reportduplicate',
             #'duplicatesource',
             #'duplicatenumb',
-            #"patientonsetage",
+            "patientonsetage",
             #"patientonsetageunit",
             "patientsex",
             #"patient.patientweight",#interseting, this data may be useful but is not recorded much
             #"patientdeath",
             #"patientdeathdate",
-            "actiondrug",
+            #"actiondrug",
             #"patient.drug.drugadditional",
             #"patient.drug.drugcumulativedosagenumb",
             #"patient.drug.drugcumulativedosageunit",
@@ -103,7 +103,7 @@ def getNessessaryKeyValues(record):
             #'pharm_class_moa',
             #'product_ndc',
             'rxcui',
-            'substance_name',
+            #'substance_name',
             'reactionmeddrapt',
             'reactionmeddraversionpt',
             'reactionoutcome'
@@ -353,7 +353,7 @@ if __name__ == '__main__':
 #        records = json.load(json_data)
     
     categorical_labels = [
-                     'actiondrug',
+                     #'actiondrug',
                      #'brand_name',
                      #'companynumb',
                      #'drugadministrationroute',
@@ -366,9 +366,9 @@ if __name__ == '__main__':
                      #'duplicate',
                      #'duplicatenumb',
                      #'duplicatesource',
-                     'generic_name',
+                     #'generic_name',
                      #'manufacturer_name',
-                     'medicinalproduct',
+                     #'medicinalproduct',
                      #'nui',#has lists
                      'occurcountry',
                      #'package_ndc',
@@ -376,19 +376,19 @@ if __name__ == '__main__':
                      #'patientdeathdate',
                      #'patientonsetage',
                      #'patientonsetageunit',
-                     'patientsex',
+                     #'patientsex',
                      #'pharm_class_cs',
                      #'pharm_class_epc',
                      #'pharm_class_moa',
                      #'pharm_class_pe',
-                     'primarysourcecountry',
+                     #'primarysourcecountry',
                      #'product_ndc',
                      #'qualification',
                      'reactionmeddrapt',
                      'reactionmeddraversionpt',
                      'reactionoutcome',
                      #'receivedate',
-                     'reportercountry',
+                     #'reportercountry',
                      'rxcui',#lets pretend its not a categorical
                      #'safetyreportid',
                      #'seriousnessdeath',
@@ -396,7 +396,7 @@ if __name__ == '__main__':
                      #'seriousnesshospitalization',
                      #'seriousnesslifethreatening',
                      #'seriousnessother',
-                     'substance_name',
+                     #'substance_name',
                      #'transmissiondate'
                      ]
     '''
@@ -457,10 +457,11 @@ if __name__ == '__main__':
     del data
     #remove columns that have the most nas
     fix_date(['receivedate'])
-    get_top_categorical(['generic_name', 'medicinalproduct', 'substance_name'], 500)
+    #get_top_categorical(['medicinalproduct', 'substance_name', 'reactionmeddrapt', 'rxcui'], 300)
     x_y_dataframe = x_y_dataframe.dropna(axis=0)
     x_y_dataframe = x_y_dataframe.reset_index(drop=True)
-    x_y_dataframe = x_y_dataframe.iloc[0:100000]
+    del x_y_dataframe['generic_name']
+    #x_y_dataframe = x_y_dataframe.iloc[0:100000]
 #    del x_y_dataframe
 #    df_arr = np.array_split(x_y_dataframe, 3)
     
@@ -483,6 +484,7 @@ if __name__ == '__main__':
     
     #get labels
     (x,y) = get_y_vals(x_y_dataframe, 'serious')
+    x_y_dataframe.to_pickle('x_y_dataframe.pkl')
     del x_y_dataframe
     
     #df = pandas.DataFrame([{'drug': ['drugA','drugB'], 'patient': 'john'}, {'drug': ['drugC','drugD'], 'patient': 'angel'}])
@@ -504,33 +506,47 @@ if __name__ == '__main__':
     x_non_cat_labels = x[not_categorical_labels]#save non cat to temp var
     x = one_hot_encode(categorical_labels)
     
+    z = pandas.concat([x,y], axis=1)#concat them after onehot encoding
+    z.to_pickle('x_y_data.pkl')
+    z = pandas.read_pickle('x_y_data_one_hot.pkl')
+    z_dict = z.to_dict('records')
+    z_dict = {str(k):v for k,v in .items()}
+    collection = startmongodb()#get collection
+    collection.count()
+    collection.insert_many(z_dict)
+    print(collection.find_one())
+    
+    import rxnorm
+    reload(rxnorm)
+    rx = rxnorm()
+    rx.set_rxnorm(['197381'])
     from sklearn.feature_extraction.text import CountVectorizer
     vect = CountVectorizer()
     X = vect.fit_transform(x_y_dataframe.medicinalproduct.map(lambda x: ' '.join(x) if isinstance(x, list) else x))
     r = pandas.SparseDataFrame(X, columns=vect.get_feature_names(), index=x_y_dataframe.index, default_fill_value=0)
     r = pandas.DataFrame(X.A, columns=vect.get_feature_names(), index=x.index)
     m = pandas.concat([m,r], axis=1)
-    
-    
-    
-    
-    
-    num_processors = 1
-    n_size = int(round(len(categorical_labels)/num_processors))
-    import time
-    import multiprocessing
-    os.system("taskset -p 0xff %d" % os.getpid())
-    start_time = time.time()
-    p = multiprocessing.Pool(num_processors)
-    res = (p.map(one_hot_encode, list(chunks(categorical_labels, n_size))))
-    print (time.time()-start_time)
-    p.terminate()#kill the workers
-    res.append(x_non_cat_labels)
-    del x_non_cat_labels
-    x = pandas.concat(res, axis=1)
-    y = pandas.to_numeric(y.astype(str).str.strip('[]'))
-    x = x.dropna(how='any')
-    y = y[x.index]
+#    
+#    
+#    
+#    
+#    
+#    num_processors = 1
+#    n_size = int(round(len(categorical_labels)/num_processors))
+#    import time
+#    import multiprocessing
+#    os.system("taskset -p 0xff %d" % os.getpid())
+#    start_time = time.time()
+#    p = multiprocessing.Pool(num_processors)
+#    res = (p.map(one_hot_encode, list(chunks(categorical_labels, n_size))))
+#    print (time.time()-start_time)
+#    p.terminate()#kill the workers
+#    res.append(x_non_cat_labels)
+#    del x_non_cat_labels
+#    x = pandas.concat(res, axis=1)
+#    y = pandas.to_numeric(y.astype(str).str.strip('[]'))
+#    x = x.dropna(how='any')
+#    y = y[x.index]
 #    y[y.isnull()] = 0#we do this to convert nans, if its empty, we set it to 0
     #y[0:20] = 1#just a test
 #    import numpy as np
@@ -541,7 +557,7 @@ if __name__ == '__main__':
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
     del x, y
     #do a logistic regression
-    model = logistic_regression(X_train, list(y_train), bagging=True)
+    model = logistic_regression(X_train, list(y_train))
     y_hat = model.predict(X_test)#predict
     y_test = y_test.reset_index(drop=True)    
     from sklearn.metrics import accuracy_score
@@ -555,18 +571,20 @@ if __name__ == '__main__':
     from sklearn.metrics import accuracy_score
     accuracy_score(y_test, y_hat)
     
+    importance = model.feature_importances_
+    importance = pandas.DataFrame(importance, index=X_train.columns, 
+                          columns=["Importance"])
+    importance_sorted = importance.sort_values('Importance', ascending=False)
+    
     #do a naive bays
-    model = naive_bays(X_train, list(y_train), bagging=True)
+    model = naive_bays(X_train, list(y_train))
     y_hat = model.predict(X_test)#predict
     y_test = y_test.reset_index(drop=True)    
     from sklearn.metrics import accuracy_score
     accuracy_score(y_test, y_hat)    
     
     
-    collection = startmongodb()#get collection
-    collection.count()
-    collection.insert_many(subrecords)
-    print(collection.find_one())
+    
     
     
     
