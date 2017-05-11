@@ -520,9 +520,12 @@ if __name__ == '__main__':
     distinct_rxcui = collection.find("rxcui")
     len(distinct_rxcui)
     
-    
-    rxcui_return = rxnorm.rxnorm(rxcui[:100])
-    
+    rxcui = map(int, rxcui)
+    reload (rxnorm)
+    rxcui_return = rxnorm.rxnorm(rxcui)
+    if rxcui_return == 0:#fresh data
+        RxNorm_collection = db['RxNorm_records']
+        RxNorm_collection.insert_many(rxcui_return)
     
     client.close()
     x_y_dataframe = pandas.DataFrame(data_from_mongo)
@@ -594,6 +597,16 @@ if __name__ == '__main__':
     importance = pandas.DataFrame(importance, index=X_train.columns, 
                           columns=["Importance"])
     importance_sorted = importance.sort_values('Importance', ascending=False)
+    
+    new_col = []
+    for idx, col in enumerate(importance_sorted.columns):
+        
+        if 'rxcui' in col:
+            DN = rxcui_return[int(col.split("= ",1)[1])]['drug_name'][0]
+            new_col.append('Drug = ' + DN)
+        else:
+            new_col.append(col)
+    
     vv = importance_sorted.iloc[:50]
     vv.to_html()
     
