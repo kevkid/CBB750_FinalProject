@@ -9,6 +9,13 @@ Created on Thu Apr 13 10:08:24 2017
 import urllib, json
 import pymongo
 import os
+import pandas
+import numpy as np
+import rxnorm
+from sklearn.feature_extraction.text import CountVectorizer
+from scipy import sparse
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 os.chdir("/home/kevin/Downloads/CBB750_FinalProject/") 
 
 
@@ -464,7 +471,7 @@ if __name__ == '__main__':
     rxcui = []
     for rec in collection.find({"rxcui": {"$ne":None}}, {"rxcui":1}):
         
-        if type(rec) == list:
+        if type(rec["rxcui"]) == list:
             rxcui.extend(rec["rxcui"])
         else:
             rxcui.append(rec["rxcui"])
@@ -473,13 +480,45 @@ if __name__ == '__main__':
     distinct_rxcui = collection.find("rxcui")
     len(distinct_rxcui)
     
-    import rxnorm
+    
     rxcui_return = rxnorm.rxnorm(rxcui[:100])
     
-    
-    import pandas
-    import numpy as np
-    x_y_dataframe = pandas.DataFrame(data)
+    "Get records"
+    data_from_mongo = []
+    for rec in collection.find({'safetyreportid':{"$ne":None},
+                                'receivedate':{"$ne":None},
+                                'serious':{"$ne":None},
+                                'transmissiondate':{"$ne":None},
+                                'occurcountry':{"$ne":None},
+                                'qualification':{"$ne":None},
+                                "patientonsetage":{"$ne":None},
+                                "patientsex":{"$ne":None},
+                                "drugcharacterization":{"$ne":None},
+                                'generic_name':{"$ne":None},
+                                'rxcui':{"$ne":None},
+                                'reactionmeddrapt':{"$ne":None},
+                                'reactionmeddraversionpt':{"$ne":None},
+                                'reactionoutcome':{"$ne":None}},
+        
+                               {'safetyreportid':1,
+                                'receivedate':1,
+                                'serious':1,
+                                'transmissiondate':1,
+                                'occurcountry':1,
+                                'qualification':1,
+                                "patientonsetage":1,
+                                "patientsex":1,
+                                "drugcharacterization":1,
+                                'generic_name':1,
+                                'rxcui':1,
+                                'reactionmeddrapt':1,
+                                'reactionmeddraversionpt':1,
+                                'reactionoutcome':1,
+                                '_id':0}):
+        data_from_mongo.append(rec)
+    data_from_mongo_df = pandas.DataFrame(data_from_mongo)
+    client.close()
+    x_y_dataframe = pandas.DataFrame(data_from_mongo)
     #x_y_dataframe.dropna(how='any')#here we can drop a row if there is any na
     del data
     #remove columns that have the most nas
@@ -499,7 +538,7 @@ if __name__ == '__main__':
     x.to_pickle('x_data.pkl')
     y.to_pickle('y_data.pkl')
     #load data
-    import pandas
+    
     x = pandas.read_pickle('x_data.pkl')
     y = pandas.read_pickle('y_data.pkl')
     
@@ -508,8 +547,7 @@ if __name__ == '__main__':
     We need to preserve the ones we arent one-hot encoding
     '''
     rr = []
-    from sklearn.feature_extraction.text import CountVectorizer
-    from scipy import sparse
+    
     vect = CountVectorizer()
     for col in categorical_labels:
         print col
@@ -528,14 +566,13 @@ if __name__ == '__main__':
     
     #getting ready for training
     
-    from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
     del x, y
     #do a logistic regression
     model = logistic_regression(X_train, list(y_train))
     y_hat = model.predict(X_test)#predict
     y_test = y_test.reset_index(drop=True)    
-    from sklearn.metrics import accuracy_score
+    
     accuracy_score(y_test, y_hat)
     
     
@@ -543,7 +580,7 @@ if __name__ == '__main__':
     model = random_forest(X_train, list(y_train))
     y_hat = model.predict(X_test)#predict
     y_test = y_test.reset_index(drop=True)    
-    from sklearn.metrics import accuracy_score
+    
     accuracy_score(y_test, y_hat)
     
     importance = model.feature_importances_
