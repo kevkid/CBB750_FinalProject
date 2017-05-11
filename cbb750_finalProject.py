@@ -523,10 +523,26 @@ if __name__ == '__main__':
     rxcui = map(int, rxcui)
     reload (rxnorm)
     rxcui_return = rxnorm.rxnorm(rxcui)
-    if rxcui_return == 0:#fresh data
-        RxNorm_collection = db['RxNorm_records']
-        RxNorm_collection.insert_many(rxcui_return)
+    tmp = []
+    d = {}
+    for key, val in rxcui_return.items():
+        d = {}
+        d[str(key)] = val        
+        tmp.append(d)
+        
     
+    '''Add RxNorm data to db'''
+    RxNorm_collection = db['RxNorm_records']
+    
+    
+    
+    if RxNorm_collection.count() == 0:#fresh data
+        RxNorm_collection.insert_many(tmp)
+    
+    RxNormDic = {}
+    for rec in RxNorm_collection.find():
+        RxNormDic.update(rec)
+        
     client.close()
     x_y_dataframe = pandas.DataFrame(data_from_mongo)
     #x_y_dataframe.dropna(how='any')#here we can drop a row if there is any na
@@ -599,13 +615,18 @@ if __name__ == '__main__':
     importance_sorted = importance.sort_values('Importance', ascending=False)
     
     new_col = []
-    for idx, col in enumerate(importance_sorted.columns):
+    for col in (importance_sorted.iterrows()):
         
-        if 'rxcui' in col:
-            DN = rxcui_return[int(col.split("= ",1)[1])]['drug_name'][0]
-            new_col.append('Drug = ' + DN)
+        if 'rxcui' in col[0]:
+            try:
+                DN = RxNormDic[(col[0].split("= ",1)[1])]['drug_name'][0]
+                new_col.append('Drug = ' + DN)
+            except:
+                print "Key Not Found Passing"
+                new_col.append(col[0])
+                pass
         else:
-            new_col.append(col)
+            new_col.append(col[0])
     
     vv = importance_sorted.iloc[:50]
     vv.to_html()
