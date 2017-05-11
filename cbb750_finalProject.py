@@ -348,6 +348,53 @@ def get_top_categorical(categorical_labels, N = 50):
 def fix_date(column):
     for col in column:
         x_y_dataframe[col] = (pandas.to_datetime(x_y_dataframe[col], errors='coerce')).astype(np.int64) // 10**9
+        
+        
+def get_records_and_save(json_files_loc = '/media/kevin/Anime/drug-event_2013'):
+
+    '''
+    We can read in each json file individually and extract the neccessary
+    elements we need thus making the file smaller and easier to read.
+    Here we read it in and save the data
+    '''
+    data = getJsonList(json_files_loc)#get the list of json files
+    #os.chdir("/home/kevin/Downloads/CBB750_FinalProject/") 
+    subrecords_loc = '/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json'
+    num_files = len(data)
+    count  = 0
+    subrecords = []#Get all the records and pull out the stuff we need
+
+    
+    for element in data:#get all of the files from some server
+        count +=1
+        print "Files Progress: " + str(count) + '/' + str(num_files)
+        
+        with open(element) as json_data:#for each file load it and get its results
+            json_file = json.load(json_data)
+            
+        records = json_file['results']#just get results
+        del json_file#save memory
+        num_rec = len(records)
+        rec_count = 0
+        rec = []
+        
+        for record in records:#for all of the records in the file prune the record and get what we need
+            #rec_count += 1
+            #print "Records per file Progress: " + str(rec_count) + '/' + str(num_rec)
+            rec = (getNessessaryKeyValues(record))#pruning
+            
+            
+            subrecords.append(rec)#append the record to a list
+    print "Writing to json file"
+    with open('/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json', "a") as out_file:
+        json.dump(subrecords, out_file)
+                    
+    data = subrecords
+    del records#save memory
+    del record
+    del subrecords
+    os.chdir("/home/kevin/Downloads/CBB750_FinalProject/")
+    return data
 if __name__ == '__main__':
     #main method
 #    records = getRecords(num_records=5000)#get records
@@ -358,7 +405,6 @@ if __name__ == '__main__':
 #    #read from disk
 #    with open('data.json') as json_data:
 #        records = json.load(json_data)
-    
     categorical_labels = [
                      #'actiondrug',
                      #'brand_name',
@@ -406,49 +452,7 @@ if __name__ == '__main__':
                      #'substance_name',
                      #'transmissiondate'
                      ]
-    '''
-    We can read in each json file individually and extract the neccessary
-    elements we need thus making the file smaller and easier to read.
-    Here we read it in and save the data
-    '''
-    data = getJsonList("/media/kevin/Anime/drug-event_2013")#get the list of json files
-    #os.chdir("/home/kevin/Downloads/CBB750_FinalProject/") 
-    subrecords_loc = '/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json'
-    num_files = len(data)
-    count  = 0
-    subrecords = []#Get all the records and pull out the stuff we need
-
     
-    for element in data:#get all of the files from some server
-        count +=1
-        print "Files Progress: " + str(count) + '/' + str(num_files)
-        
-        with open(element) as json_data:#for each file load it and get its results
-            json_file = json.load(json_data)
-            
-        records = json_file['results']#just get results
-        del json_file#save memory
-        num_rec = len(records)
-        rec_count = 0
-        rec = []
-        
-        for record in records:#for all of the records in the file prune the record and get what we need
-            #rec_count += 1
-            #print "Records per file Progress: " + str(rec_count) + '/' + str(num_rec)
-            rec = (getNessessaryKeyValues(record))#pruning
-            
-            
-            subrecords.append(rec)#append the record to a list
-    print "Writing to json file"
-    with open('/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json', "a") as out_file:
-        json.dump(subrecords, out_file)
-                    
-    data = subrecords
-    del records#save memory
-    del record
-    del subrecords
-    
-    os.chdir("/home/kevin/Downloads/CBB750_FinalProject/")
     '''
     Read in the subarray data
     '''
@@ -464,25 +468,11 @@ if __name__ == '__main__':
     client = MongoClient()
     db = client.cbb750_final_database
     collection = db['fda_records']
-    collection.count()
-    collection.insert_many(data)
     
-    '''Get records with rxcui'''
-    rxcui = []
-    for rec in collection.find({"rxcui": {"$ne":None}}, {"rxcui":1}):
-        
-        if type(rec["rxcui"]) == list:
-            rxcui.extend(rec["rxcui"])
-        else:
-            rxcui.append(rec["rxcui"])
-        
-    "Get distinct rxcui"
-    distinct_rxcui = collection.find("rxcui")
-    len(distinct_rxcui)
-    
-    
-    rxcui_return = rxnorm.rxnorm(rxcui[:100])
-    
+    if collection.count() == 0:#fresh DB    
+        data = get_records_and_save('/media/kevin/Anime/drug-event_2013')
+        collection.insert_many(data)
+
     "Get records"
     data_from_mongo = []
     for rec in collection.find({'safetyreportid':{"$ne":None},
@@ -516,14 +506,31 @@ if __name__ == '__main__':
                                 'reactionoutcome':1,
                                 '_id':0}):
         data_from_mongo.append(rec)
-    data_from_mongo_df = pandas.DataFrame(data_from_mongo)
+    
+    '''Get records with rxcui'''
+    rxcui = []
+    for rec in collection.find({"rxcui": {"$ne":None}}, {"rxcui":1}):
+        
+        if type(rec["rxcui"]) == list:
+            rxcui.extend(rec["rxcui"])
+        else:
+            rxcui.append(rec["rxcui"])
+        
+    "Get distinct rxcui"
+    distinct_rxcui = collection.find("rxcui")
+    len(distinct_rxcui)
+    
+    
+    rxcui_return = rxnorm.rxnorm(rxcui[:100])
+    
+    
     client.close()
     x_y_dataframe = pandas.DataFrame(data_from_mongo)
     #x_y_dataframe.dropna(how='any')#here we can drop a row if there is any na
-    del data
+    #del data
     #remove columns that have the most nas
     fix_date(['receivedate'])
-    get_top_categorical(categorical_labels, 500)
+    get_top_categorical(categorical_labels, 500)#we have to eliminate some data otherwise we will have way to many categories and will overload the system
     x_y_dataframe = x_y_dataframe.dropna(axis=0)
     x_y_dataframe = x_y_dataframe.reset_index(drop=True)
     del x_y_dataframe['generic_name']
@@ -569,7 +576,7 @@ if __name__ == '__main__':
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
     del x, y
     #do a logistic regression
-    model = logistic_regression(X_train, list(y_train))
+    model = logistic_regression(X_train, list(y_train), boosting=True)
     y_hat = model.predict(X_test)#predict
     y_test = y_test.reset_index(drop=True)    
     
@@ -587,9 +594,13 @@ if __name__ == '__main__':
     importance = pandas.DataFrame(importance, index=X_train.columns, 
                           columns=["Importance"])
     importance_sorted = importance.sort_values('Importance', ascending=False)
+    vv = importance_sorted.iloc[:50]
+    vv.to_html()
+    
+    vv.plot(figsize=(15,15))
     
     #do a naive bays
-    model = naive_bays(X_train, list(y_train))
+    model = naive_bays(X_train, list(y_train), boosting=True)
     y_hat = model.predict(X_test)#predict
     y_test = y_test.reset_index(drop=True)    
     from sklearn.metrics import accuracy_score
