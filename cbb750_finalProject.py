@@ -9,7 +9,7 @@ Created on Thu Apr 13 10:08:24 2017
 import urllib, json
 import pymongo
 import os
-os.chdir("Downloads/CBB750_FinalProject/") 
+os.chdir("/home/kevin/Downloads/CBB750_FinalProject/") 
 
 
 '''Get the records from fda'''
@@ -340,7 +340,7 @@ def get_top_categorical(categorical_labels, N = 50):
                     x_y_dataframe.set_value(idx,label, None)
 def fix_date(column):
     for col in column:
-        x_y_dataframe[col] = pandas.to_datetime(x_y_dataframe[col], errors='coerce')
+        x_y_dataframe[col] = (pandas.to_datetime(x_y_dataframe[col], errors='coerce')).astype(np.int64) // 10**9
 if __name__ == '__main__':
     #main method
 #    records = getRecords(num_records=5000)#get records
@@ -449,7 +449,34 @@ if __name__ == '__main__':
     with open('/home/kevin/Downloads/CBB750_FinalProject/subrecords_.json', 'r') as data_file:
         data = json.load(data_file)
         
+    '''
+    Store in the database
+    '''
+    
+    from pymongo import MongoClient
+    client = MongoClient()
+    db = client.cbb750_final_database
+    collection = db['fda_records']
+    collection.count()
+    collection.insert_many(data)
+    
+    '''Get records with rxcui'''
+    rxcui = []
+    for rec in collection.find({"rxcui": {"$ne":None}}, {"rxcui":1}):
         
+        if type(rec) == list:
+            rxcui.extend(rec["rxcui"])
+        else:
+            rxcui.append(rec["rxcui"])
+        
+    "Get distinct rxcui"
+    distinct_rxcui = collection.find("rxcui")
+    len(distinct_rxcui)
+    
+    import rxnorm
+    rxcui_return = rxnorm.rxnorm(rxcui[:100])
+    
+    
     import pandas
     import numpy as np
     x_y_dataframe = pandas.DataFrame(data)
@@ -457,37 +484,16 @@ if __name__ == '__main__':
     del data
     #remove columns that have the most nas
     fix_date(['receivedate'])
-    #get_top_categorical(['medicinalproduct', 'substance_name', 'reactionmeddrapt', 'rxcui'], 300)
+    get_top_categorical(categorical_labels, 500)
     x_y_dataframe = x_y_dataframe.dropna(axis=0)
     x_y_dataframe = x_y_dataframe.reset_index(drop=True)
     del x_y_dataframe['generic_name']
-    #x_y_dataframe = x_y_dataframe.iloc[0:100000]
-#    del x_y_dataframe
-#    df_arr = np.array_split(x_y_dataframe, 3)
-    
-
-#    
-#
-
-    
-
-    
-    
-    
-    #check columns for most nas
-#    cols = list (x_y_dataframe)
-#    d = {}
-#    for col in cols:
-#        #d[col] = 
-#        print x.loc[x[col].str.contains("12.5 MG EACH ANTIEMETIC") ]
-        #print col + ": " + str(x_y_dataframe[col].str.contains("12.5 MG EACH ANTIEMETIC"))
     
     #get labels
     (x,y) = get_y_vals(x_y_dataframe, 'serious')
     x_y_dataframe.to_pickle('x_y_dataframe.pkl')
+    x_y_dataframe = pandas.read_pickle('x_y_dataframe.pkl')
     del x_y_dataframe
-    
-    #df = pandas.DataFrame([{'drug': ['drugA','drugB'], 'patient': 'john'}, {'drug': ['drugC','drugD'], 'patient': 'angel'}])
     
     #save data
     x.to_pickle('x_data.pkl')
@@ -501,58 +507,27 @@ if __name__ == '__main__':
     get difference in labeles we are one-hot encoding and ones we aren't
     We need to preserve the ones we arent one-hot encoding
     '''
-    s = set(categorical_labels)
-    not_categorical_labels = [x_val for x_val in list(x) if x_val not in s]
-    x_non_cat_labels = x[not_categorical_labels]#save non cat to temp var
-    x = one_hot_encode(categorical_labels)
-    
-    z = pandas.concat([x,y], axis=1)#concat them after onehot encoding
-    z.to_pickle('x_y_data.pkl')
-    z = pandas.read_pickle('x_y_data_one_hot.pkl')
-    z_dict = z.to_dict('records')
-    z_dict = {str(k):v for k,v in .items()}
-    collection = startmongodb()#get collection
-    collection.count()
-    collection.insert_many(z_dict)
-    print(collection.find_one())
-    
-    import rxnorm
-    reload(rxnorm)
-    rx = rxnorm()
-    rx.set_rxnorm(['197381'])
+    rr = []
     from sklearn.feature_extraction.text import CountVectorizer
+    from scipy import sparse
     vect = CountVectorizer()
-    X = vect.fit_transform(x_y_dataframe.medicinalproduct.map(lambda x: ' '.join(x) if isinstance(x, list) else x))
-    r = pandas.SparseDataFrame(X, columns=vect.get_feature_names(), index=x_y_dataframe.index, default_fill_value=0)
-    r = pandas.DataFrame(X.A, columns=vect.get_feature_names(), index=x.index)
-    m = pandas.concat([m,r], axis=1)
-#    
-#    
-#    
-#    
-#    
-#    num_processors = 1
-#    n_size = int(round(len(categorical_labels)/num_processors))
-#    import time
-#    import multiprocessing
-#    os.system("taskset -p 0xff %d" % os.getpid())
-#    start_time = time.time()
-#    p = multiprocessing.Pool(num_processors)
-#    res = (p.map(one_hot_encode, list(chunks(categorical_labels, n_size))))
-#    print (time.time()-start_time)
-#    p.terminate()#kill the workers
-#    res.append(x_non_cat_labels)
-#    del x_non_cat_labels
-#    x = pandas.concat(res, axis=1)
-#    y = pandas.to_numeric(y.astype(str).str.strip('[]'))
-#    x = x.dropna(how='any')
-#    y = y[x.index]
-#    y[y.isnull()] = 0#we do this to convert nans, if its empty, we set it to 0
-    #y[0:20] = 1#just a test
-#    import numpy as np
-#    x[np.isfinite(x['drugintervaldosagedefinition'])]
-    #x_y_dataframe.dropna(how='any')#here we can drop a row if there is any na
-    #split the data:
+    for col in categorical_labels:
+        print col
+        try:
+            print 'trying sparse DF'
+            X = vect.fit_transform(x[col].astype(str).map(lambda x: ' '.join(x) if isinstance(x, list) else x))
+            rr.append(pandas.DataFrame(X.A, columns=vect.get_feature_names(), index=x.index).add_prefix(col + ' = '))
+            
+        except:
+            print 'trying regular DF'
+            r = x[col].astype(str).str.strip('[]').str.get_dummies(', ').add_prefix(col + ' = ')
+            rr.append(pandas.DataFrame(r, columns = r.columns, index=r.index))
+        del x[col]
+    tmp = pandas.concat(rr,axis=1)
+    x = pandas.concat([x, tmp],axis=1)
+    
+    #getting ready for training
+    
     from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
     del x, y
@@ -588,3 +563,193 @@ if __name__ == '__main__':
     
     
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
+#    
+#    
+#    
+#    #x = one_hot_encode(categorical_labels)
+#    
+#    z = pandas.concat([x,y], axis=1)#concat them after onehot encoding
+#    z.to_pickle('x_y_data.x_y_data_one_hot')
+#    import pandas
+#    z = pandas.read_pickle('x_y_data_one_hot.pkl')
+#    z_dict = z.to_dict('records')
+#    #z_dict = {str(k):v for k,v in .items()}
+#    collection = startmongodb()#get collection
+#    collection.count()
+#    collection.insert_many(z_dict)
+#    print(collection.find_one())
+#    
+#    rxcuiList = []
+#    for element in x['rxcui']:
+#        if type(element) == list:
+#            for el in element:
+#               rxcuiList.append(int(el))
+#        else:
+#            rxcuiList.append(int(element))
+#            
+#    #rxcuiList = list(set(rxcuiList))
+#    
+#    import rxnorm
+#    reload(rxnorm)
+#    rxcui_return = rxnorm.rxnorm(rxcuiList)
+#
+#    import pandas
+#    z = pandas.read_pickle('x_y_data_one_hot.pkl')
+#    (x,y) = get_y_vals(z, 'serious')
+#    del x['drugcharacterization']
+#    del x['occurcountry']
+#    del x['reactionmeddrapt']
+#    del x['reactionmeddraversionpt']
+#    del x['reactionoutcome']
+#    del x['rxcui']
+#    from sklearn.feature_extraction.text import CountVectorizer
+#    from scipy import sparse
+#    rr = []
+#    vect = CountVectorizer()
+#    for col in categorical_labels:
+#        print col
+#        try:
+#            print 'trying sparse DF'
+#            X = vect.fit_transform(z[col].astype(str).map(lambda x: ' '.join(x) if isinstance(x, list) else x))
+#            rr.append(pandas.SparseDataFrame(X, columns=vect.get_feature_names(), index=z.index, default_fill_value=0).add_prefix(col + ' = '))
+#            
+#        except:
+#            print 'trying regular DF'
+#            r = z[col].astype(str).str.strip('[]').str.get_dummies(', ').add_prefix(col + ' = ')
+#            rr.append(pandas.SparseDataFrame(r, columns = r.columns, index=r.index, default_fill_value = 0))
+#    
+#    print "appending now"
+#    
+#    merged_sparse_df = pandas.SparseDataFrame(index=rr[0].index)
+#    merged_sparse_df = pandas.SparseDataFrame(sparse.hstack([rr[0], rr[1]]), columns=rr[0].columns.append(rr[1].columns), default_fill_value=0)
+#    merged_sparse_df = pandas.SparseDataFrame(sparse.hstack([merged_sparse_df, rr[2]]), columns=merged_sparse_df.columns.append(rr[2].columns), default_fill_value=0)
+#    merged_sparse_df = pandas.SparseDataFrame(sparse.hstack([merged_sparse_df, rr[3]]), columns=merged_sparse_df.columns.append(rr[3].columns), default_fill_value=0)
+#    merged_sparse_df = pandas.SparseDataFrame(sparse.hstack([merged_sparse_df, rr[4]]), columns=merged_sparse_df.columns.append(rr[4].columns), default_fill_value=0)
+#    merged_sparse_df = pandas.SparseDataFrame(sparse.hstack([merged_sparse_df, rr[5]]), columns=merged_sparse_df.columns.append(rr[5].columns), default_fill_value=0)
+#    merged_sparse_df.memory_usage()
+#    merged_sparse_df.to_pickle('merged_sparse_df.pkl')
+#    import pandas
+#    merged_sparse_df = pandas.read_pickle('merged_sparse_df.pkl')
+#    
+#    x = x.to_sparse()
+#    x = pandas.concat([merged_sparse_df, x], axis=1)
+#    
+#    for col in x.columns:
+#        print 'we are at column: ' + col
+#        merged_sparse_df.add( x[col] ,axis = 1)
+#        #x = pandas.concat( [merged_sparse_df[col],x.to_sparse()] ,axis = 1)
+#    x.to_pickle("Fully_Concated_sparse_and_dense.pkl")
+#    x = pandas.SparseDataFrame(sparse.hstack([x, merged_sparse_df]), columns=x.columns.append(merged_sparse_df.columns), default_fill_value=0)
+#    
+#    (x,y) = get_y_vals(z, 'serious')
+#    
+#    rr[0].memory_usage()
+#    rr[1].memory_usage()
+#    
+#    rr[5].memory_usage()
+#    for idx, r in enumerate(rr):
+#        print 'we are at rr: ' + str(idx)
+#        for col in r.columns:
+#            print 'we are at column: ' + col
+#            merged_sparse_df = pandas.concat([merged_sparse_df, r[col]], axis=1)
+#    
+#    merged_sparse_df = pandas.SparseDataFrame(pandas.concat([rr[0], rr[1]], axis=1))
+#    
+#    
+#    
+#    merged_sparse_df = pandas.SparseDataFrame(pandas.concat([merged_sparse_df, rr[2]], axis=1))
+#    merged_sparse_df = pandas.SparseDataFrame(pandas.concat([merged_sparse_df, rr[3]], axis=1))
+#    merged_sparse_df = pandas.SparseDataFrame(pandas.concat([merged_sparse_df, rr[4]], axis=1))
+#    merged_sparse_df = pandas.SparseDataFrame(pandas.concat([merged_sparse_df, rr[5]], axis=1))
+#    
+#    
+#    merged_sparse_df = pandas.SparseDataFrame(sparse.hstack([rr[0], rr[1]]), columns=rr[0].columns.append(rr[1].columns))
+#
+#        
+#        rr.to_pickle('rr.pkl')
+#        
+#        vect = CountVectorizer()
+#        X = vect.fit_transform(z[col].astype(str).map(lambda x: ' '.join(x) if isinstance(x, list) else x))
+#        r = pandas.SparseDataFrame(X, columns=vect.get_feature_names(), index=z.index, default_fill_value=0).add_prefix(col + ' = ')
+#        r.to_pickle('r.pkl')
+#        r = pandas.read_pickle('r.pkl')
+#        rr = pandas.concat([rr,r], axis=1)
+#        
+#
+#    import pandas
+#    rr = pandas.DataFrame()
+#    z = pandas.read_pickle('x_y_data_one_hot.pkl')
+#    (x,y) = get_y_vals(z, 'serious')
+#    del z
+#    del x['drugcharacterization']
+#    del x['occurcountry']
+#    del x['reactionmeddrapt']
+#    del x['reactionmeddraversionpt']
+#    del x['reactionoutcome']
+#    del x['rxcui']
+#    drugcharacterization = pandas.read_pickle('drugcharacterization_subarr.pkl')
+#    occurcountry = pandas.read_pickle('occurcountry_subarr.pkl')
+#    reactionmeddrapt = pandas.read_pickle('reactionmeddrapt_subarr.pkl')
+#    reactionmeddraversionpt = pandas.read_pickle('reactionmeddraversionpt_subarr.pkl')
+#    reactionoutcome = pandas.read_pickle('reactionoutcome_subarr.pkl')
+#    rxcui = pandas.read_pickle('rxcui_subarr.pkl')
+#    
+#    drugcharacterization.astype(str).memory_usage()
+#    
+#    from scipy import sparse
+#    from sklearn.feature_extraction.text import CountVectorizer    
+#    vect = CountVectorizer()
+#    X = vect.fit_transform(z['drugcharacterization'].astype(str).map(lambda x: ' '.join(x) if isinstance(x, list) else x))
+#    
+#    r = pandas.SparseDataFrame(X, columns=vect.get_feature_names(), index=z.index, default_fill_value=0).add_prefix(col + ' = ')
+#    
+#    rr = pandas.SparseDataFrame(sparse.hstack([rxcui, occurcountry, reactionmeddrapt, reactionmeddraversionpt
+#                                               ,reactionoutcome
+#                                               ]), columns=rxcui.columns.append(occurcountry.columns.append(reactionmeddrapt.columns)))
+#    
+#        
+#    r = z[col].astype(str).str.strip('[]').str.get_dummies(', ').add_prefix(col + ' = ')
+#    r_sparse = pandas.SparseDataFrame(r, columns = r.columns, default_fill_value = 0)
+#        
+#    x = pandas.concat([x, drugcharacterization, occurcountry, reactionmeddrapt, reactionmeddraversionpt, reactionoutcome, rxcui],axis=1, copy=False)
+#    os.chdir('/media/kevin/Anime')
+#    x.to_pickle('all_categorical_data.pkl')
+#    
+##    num_processors = 1
+##    n_size = int(round(len(categorical_labels)/num_processors))
+##    import time
+##    import multiprocessing
+##    os.system("taskset -p 0xff %d" % os.getpid())
+##    start_time = time.time()
+##    p = multiprocessing.Pool(num_processors)
+##    res = (p.map(one_hot_encode, list(chunks(categorical_labels, n_size))))
+##    print (time.time()-start_time)
+##    p.terminate()#kill the workers
+##    res.append(x_non_cat_labels)
+##    del x_non_cat_labels
+##    x = pandas.concat(res, axis=1)
+##    y = pandas.to_numeric(y.astype(str).str.strip('[]'))
+##    x = x.dropna(how='any')
+##    y = y[x.index]
+##    y[y.isnull()] = 0#we do this to convert nans, if its empty, we set it to 0
+#    #y[0:20] = 1#just a test
+##    import numpy as np
+##    x[np.isfinite(x['drugintervaldosagedefinition'])]
+#    #x_y_dataframe.dropna(how='any')#here we can drop a row if there is any na
+#    #split the data:
+#    
+#    
+#    
+#    
+#    
+#    
+#    
